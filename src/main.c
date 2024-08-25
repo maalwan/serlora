@@ -25,7 +25,7 @@ int simple_callback(int argc, char** argv, void* serial_fd_ptr) {
         write(serial_fd, command, len);
         // Read
         char buf[1024];
-        int bytes = read_serial(serial_fd, 1000, buf, sizeof(buf));
+        int bytes = read_serial(serial_fd, 100, buf, sizeof(buf));
         puts(buf);
         if (bytes < 0) { return 1; }
     } else if (!strcmp(argv[0], "read")) {
@@ -33,9 +33,9 @@ int simple_callback(int argc, char** argv, void* serial_fd_ptr) {
         write(serial_fd, command, len); 
         // Read 
         char buf[1024]; 
-        ser_async* sa = read_serial_async(serial_fd, buf, sizeof(buf)); // Non-blocking
-        while (getchar() != 'q') { /* Do not */ }
-		return ser_quit_async(sa);
+        int bytes = read_serial(serial_fd, 100, buf, sizeof(buf));
+        puts(buf);
+        if (bytes < 0) { return 1; }
     } else {
         puts("Invalid Command");
     }
@@ -46,10 +46,9 @@ int simple_callback(int argc, char** argv, void* serial_fd_ptr) {
 // Callback for P2P using wioe.h
 int p2p_callback(int argc, char** argv, void* device_ptr) {
 	int r;
-
 	// Recover device
 	wioe* device = (wioe*) device_ptr;
-	// Write: non-blocking, Read: blocking
+	// Write and read
     if (!strcmp(argv[0], "write") && argc == 2) {
         // Write
         r = wioe_send(device, argv[1], 0); // Len can be 0 for now
@@ -59,7 +58,8 @@ int p2p_callback(int argc, char** argv, void* device_ptr) {
 		}
     } else if (!strcmp(argv[0], "read") && argc == 1) {
         // Read
-        r = wioe_recieve(device);
+		char buf[256];
+        r = wioe_recieve(device, buf, sizeof(buf));
 		if (r < 0) {
 			puts("Read failed");
 			return 1;
@@ -68,26 +68,27 @@ int p2p_callback(int argc, char** argv, void* device_ptr) {
         printf("Invalid Command\n");
 		return 0;
     }
-
     return 0;
-
 }
 
 
 int main(int argc, char** argv) {
     if (argc != 3){
-        puts("Invalid Parameters");
+        puts("usage: wio device_name RAW/P2P");
         return 1;
     }
     int r;
     char path[32];
-    r = snprintf(path, sizeof(path), "/dev/tty%s", argv[1]);
+    r = snprintf(path, sizeof(path), "/dev/cu.%s", argv[1]);
     if (r < 0) { return 1; }
 
 	if (!strcmp(argv[2], "RAW")) {
 		// Open serial port
+		puts("1");
 		int serial_fd = open_serial(path);
+		puts("2");
 		if (serial_fd < 0) { return 1; }
+		puts("3");
 		// Hand off control to custom terminal UI
 		r = term_interface(&simple_callback, &serial_fd);
 		// Close serial port
@@ -99,21 +100,20 @@ int main(int argc, char** argv) {
 			.bandwidth = 125,
 			.tx_preamble = 6,
 			.rx_preamble = 6,
-			.power = 10,
+			.power = 2,
 			.crc = 1,
 			.inverted_iq = 0,
 			.public_lorawan = 0,
 		};
 		wioe* dev = wioe_init(&params, path);
 		if (dev == NULL || !wioe_is_valid(dev)) {
-			printf("Failed to initilize device\n");
+			perror("Failed to initilize device\n");
 			return 1;
 		}
 		r = term_interface(&p2p_callback, dev);
 		wioe_destroy(dev);
 		if (r < 0 ) { return 1; }
 	}
-	
     return 0;
 }
 
