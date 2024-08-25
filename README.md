@@ -26,8 +26,8 @@ This project leverages STM32 Cortex-M4 boards with integrated LoRa (SX126X) to e
 ### 1. Clone the Repository
 
    ```
-   git clone <repository-url>
-   cd <repository-directory>
+   git clone git@github.com:maalwan/serlora.git
+   cd git@github.com:maalwan/serlora.git
    ```
 
 ### 2. Building the Project
