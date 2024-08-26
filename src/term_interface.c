@@ -17,16 +17,16 @@ struct term {
 
 // Function to clear the line
 static void clear_line() {
-	printf("\033[2K"); // Clear the entire line
-	printf("\r");      // Move the cursor to the beginning of the line
+    printf("\033[2K"); // Clear the entire line
+    printf("\r");      // Move the cursor to the beginning of the line
 }
 
 // Function to display the current command line
 static void display_command_line(const char* command_line, int cursor_position) {
-	clear_line();
-	printf("\033[1;34m~$\033[0m %s", command_line);
-	printf("\033[%dG", cursor_position + 4); // Move cursor to current position
-	fflush(stdout); // Flush the output buffer
+    clear_line();
+    printf("\033[1;34m~$\033[0m %s", command_line);
+    printf("\033[%dG", cursor_position + 4); // Move cursor to current position
+    fflush(stdout); // Flush the output buffer
 }
 
 void* backend_term(void* args) {
@@ -95,23 +95,23 @@ void* backend_term(void* args) {
             current_index = 0;
             curr_history_index = history_index;
             // Call callback by first tokenizing
-			int argc = 0;
-			char* tok = strtok(out, " ");
-			while (tok != NULL) {
-				argc++;
-				tok = strtok(NULL, " ");
-			}
-			char* argv[argc];
-			char* curr = out;
-			int idx = 0;
-			int j = 0;
-			while (idx < argc) {
-				if (out[j] == '\0') {
-					argv[idx++] = curr;
-					curr = out + j + 1;
-				}
-				j++; 
-			}
+            int argc = 0;
+            char* tok = strtok(out, " ");
+            while (tok != NULL) {
+                argc++;
+                tok = strtok(NULL, " ");
+            }
+            char* argv[argc];
+            char* curr = out;
+            int idx = 0;
+            int j = 0;
+            while (idx < argc) {
+                if (out[j] == '\0') {
+                    argv[idx++] = curr;
+                    curr = out + j + 1;
+                }
+                j++; 
+            }
             if (data->callback(argc, argv, data->callback_ptr) < 0) { return (void*) -1; }
             // Reset terminal
             display_command_line(data->command_line, data->cursor_position);
