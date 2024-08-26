@@ -71,3 +71,48 @@ ssize_t read_serial(int serial_fd, size_t ms, char* buf, size_t len) {
 	buf[bytes_read - 2] = '\0'; // null terminate and strip new lines
 	return bytes_read - 2;
 }
+
+ssize_t read_serial_trigger(int serial_fd, size_t ms, char* buf, size_t len, int trigger_fd) {
+	// Read with timeout
+    fd_set read_fds;
+    FD_ZERO(&read_fds);
+    FD_SET(serial_fd, &read_fds);
+	FD_SET(trigger_fd, &read_fds);
+	struct timeval init_t = {.tv_sec = ms / 1000, .tv_usec = (ms % 1000) * 1000};
+	int max_fd = serial_fd > trigger_fd ? serial_fd : trigger_fd;
+	int select_result = select(max_fd + 1, &read_fds, NULL, NULL, ms != 0 ? &init_t : NULL);
+	// If select timeouts, quit early
+	if (select_result < 0) {
+		perror("Timeout");
+		return -1;
+	}
+	// If trigger is activated, return early as well
+	if (FD_ISSET(trigger_fd, &read_fds)) {
+		// Read from the pipe until it is empty
+		char buf;
+		read(trigger_fd, &buf, sizeof(buf));
+		return 0;
+	}
+	// Read response continously
+	int bytes_read = 0;
+	while (FD_ISSET(serial_fd, &read_fds)) {
+		// Read response
+		bytes_read += read(serial_fd, buf + bytes_read, len - bytes_read);
+		if (bytes_read < 0) {
+			perror("Serial Error");
+			return -1;
+		}
+		// Select again in case we are reading faster than we are recieving data
+		// Setup timeout
+		struct timeval norm_t = { .tv_sec = 0, .tv_usec = NORM_TIMEOUT};
+		FD_ZERO(&read_fds); FD_SET(serial_fd, &read_fds);
+		// Wait for next bytes to come in
+		select_result = select(serial_fd + 1, &read_fds, NULL, NULL, &norm_t);
+		if (select_result < 0) {
+			perror("Select Error");
+			return -1;
+		}
+	}
+	buf[bytes_read - 2] = '\0'; // null terminate and strip new lines
+	return bytes_read - 2;
+}

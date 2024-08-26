@@ -29,4 +29,16 @@ int open_serial(char* serial_port);
 // @return Number of bytes read, or -1 on error.
 ssize_t read_serial(int serial_fd, size_t ms, char* buf, size_t len);
 
+// Reads data from the serial port that takes trigger to prematurely end read
+// that is thread safe.
+//
+// @param serial_fd File descriptor for the serial port.
+// @param ms Timeout for read operation in milliseconds.
+// @param buf Buffer to store the read data.
+// @param len Length of the buffer.
+// @param trigger_fd File descriptor of pipe used to cancel read
+// @return Number of bytes read, or -1 on error.
+ssize_t read_serial_trigger(int serial_fd, size_t ms, char* buf, size_t len, 
+                            int trigger_fd);
+
 #endif  // SER_H_

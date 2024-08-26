@@ -41,9 +41,15 @@ term* term_interface_async(int (*callback)(int, char**, void*), void* ptr);
 void term_print(term* info, char* str);
 
 // Waits for the terminal interface to finish its operations and joins the thread.
+// Also cleans up memory used by the term object. The term object cannot be reused.
 //
 // @param info Pointer to a `term` structure representing the terminal interface.
 // @return 0 on success, or a non-zero value on error.
 int term_join(term* info);
+
+// Conveys whether the terminal has been quit
+//
+// @return 1 if complete, 0 otherwise
+int term_is_complete(term* info);
 
 #endif  // TERM_INTERFACE_H_

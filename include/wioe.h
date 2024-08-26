@@ -37,6 +37,7 @@ enum {
 };
 
 // Initializes a Wio-E5 device with specified parameters and serial port
+//
 // @param params Params used to specify the messaging characteristics of
 //               of the module
 // @serial_port The string representation of the serial_port the device
@@ -46,6 +47,7 @@ enum {
 wioe* wioe_init(wioe_params* params, char* serial_port);
 
 // Updates the configuration of an existing Wio-E5 device
+//
 // @param device The initialized wioe device
 // @param params Params used to specify the messaging characteristics of
 //               of the module
@@ -53,6 +55,7 @@ wioe* wioe_init(wioe_params* params, char* serial_port);
 int wioe_update(wioe* device, wioe_params* params);
 
 // Sends data through the Wio-E5 device
+//
 // @param device The initialized wioe device
 // @param data The data to be sent
 // @param len Len in bytes of the data to be sent
@@ -60,17 +63,25 @@ int wioe_update(wioe* device, wioe_params* params);
 int wioe_send(wioe* device, char* data, size_t len);
 
 // Receives data from the Wio-E5 device
+//
 // @param device The initialized wioe device
-// @param device The buffer where the recieved data should be stored
+// @param buf The buffer where the recieved data should be stored
 // @param len The size of the buffer
 // @return 0 on success, or a non-zero value on error.
-int wioe_receive(wioe* device, char* buf, size_t len);
+int wioe_recieve(wioe* device, char* buf, size_t len);
+
+// If the device is currently reading (in another thread), then this
+// function will cancel the blocking function
+// @param device The initialized wioe device
+void wioe_cancel_recieve(wioe* device);
 
 // Checks if the Wio-E5 device is valid and properly initialized
+//
 // @return 0 if invalid, 1 if valid
 int wioe_is_valid(wioe* device);
 
 // Cleans up and deallocates resources for the Wio-E5 device
+//
 // @param device The initialized wioe device
 void wioe_destroy(wioe* device);
 

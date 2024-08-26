@@ -1,10 +1,12 @@
 #include "term_interface.h"
+#include "wioe.h"
 
 typedef struct {
     int (*callback)(int, char**, void*);
     void* callback_ptr;
     int cursor_position;
     char command_line[MAX_COMMAND_LENGTH];
+    int complete;
     pthread_mutex_t lock;
 } term_args;
 
@@ -45,7 +47,7 @@ void* backend_term(void* args) {
     //int cursor_position = 0;
     int ch;
     display_command_line(data->command_line, data->cursor_position);
-    while ((ch = getchar()) != 'q') {
+    while ((ch = getchar()) != 27) {
         pthread_mutex_lock(&data->lock);
         if (ch == '\033') { // Check for escape sequence (arrow keys)
             getchar();
@@ -112,7 +114,6 @@ void* backend_term(void* args) {
 			}
             if (data->callback(argc, argv, data->callback_ptr) < 0) { return (void*) -1; }
             // Reset terminal
-            // printf("\033[F");  // go to beginning of previous line to delete previous
             display_command_line(data->command_line, data->cursor_position);
         } else if (ch == 127) { // Backspace key
             // Handle backspace to delete characters from the command line
@@ -140,6 +141,8 @@ void* backend_term(void* args) {
     }
     tcsetattr(STDIN_FILENO, TCSANOW, &old);
     putc('\n', stdout);
+    data->complete = 1;
+    wioe_cancel_recieve((wioe*) data->callback_ptr);
     return (void*) 0;
 }
 
@@ -149,6 +152,7 @@ int term_interface(int (*callback)(int, char**, void*), void* ptr) {
     term_args* data = malloc(sizeof(term_args));
     data->callback = callback;
     data->callback_ptr = ptr;
+    data->complete = 0;
     memset(data->command_line, 0, sizeof(data->command_line));
     pthread_mutex_init(&data->lock, NULL);
     void* ret = backend_term((void*) data);
@@ -186,4 +190,8 @@ int term_join(term* info) {
     free(info->data);
     free(info);
     return (int) (long) ret;
+}
+
+int term_is_complete(term* info) {
+    return info->data->complete;
 }
