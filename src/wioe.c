@@ -1,4 +1,5 @@
 #include "wioe.h"
+#include <stdint.h>
 
 #define BUFLEN 528
 #define ISON(x) (x ? "ON" : "OFF")
@@ -25,9 +26,10 @@ int wioe_handle_packet(char* buf, size_t len) {
         sscanf(pos, "%2hhx", &pkt[count]);
         pos += 2;
     }
-    *(pkt + count) = '\0';
+    //*(pkt + count) = '\0';
+    len = count >= len ? count : len;
     strncpy(buf, pkt, len);
-    return 1;
+    return len;
 }
 
 wioe* wioe_init(wioe_params* params, char* serial_port) {
@@ -119,6 +121,25 @@ int wioe_send(wioe* device, char* data, size_t len) {
     return 0;
 }
 
+int wioe_send_encrypted(wioe* device, char* data, size_t len, const unsigned char *key) {
+    // Get timestamp in nanoseconds as nonce
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    uint64_t timestamp_ns = (uint64_t)ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+    unsigned char nonce[crypto_aead_chacha20poly1305_NPUBBYTES];
+    memcpy(nonce, &timestamp_ns, sizeof(timestamp_ns));
+    // Encrypt data using libsodium's chacha20poly1305
+    unsigned char nonce_ciphertext[crypto_aead_chacha20poly1305_NPUBBYTES + 
+                                   len + crypto_aead_chacha20poly1305_ABYTES];
+    memcpy(nonce_ciphertext, &timestamp_ns, sizeof(timestamp_ns));
+    unsigned long long ciphertext_len;
+    crypto_aead_chacha20poly1305_encrypt(nonce_ciphertext + crypto_aead_chacha20poly1305_NPUBBYTES, &ciphertext_len,
+                                         (unsigned char*) data, len,
+                                         NULL, 0,
+                                         NULL, nonce, key);
+    return wioe_send(device, nonce_ciphertext, ciphertext_len);
+}
+
 int wioe_recieve(wioe* device, char* buf, size_t len) {
     if (!wioe_is_valid(device)) { return -1; }
     char cmd[BUFLEN];
@@ -138,6 +159,25 @@ int wioe_recieve(wioe* device, char* buf, size_t len) {
     pthread_mutex_unlock(&device->lock);
     if (r <= 0) { return r; }
     return wioe_handle_packet(buf, len);
+}
+
+int wioe_recieve_encrypted(wioe* device, char* buf, size_t len, const unsigned char *key) {
+    unsigned char nonce_ciphertext[BUFLEN];
+    int ciphertext_len = wioe_recieve(device, nonce_ciphertext, len);
+    if (ciphertext_len <= 0) { return ciphertext_len; }
+    unsigned char decrypted[BUFLEN];
+    unsigned long long decrypted_len;
+    if (crypto_aead_chacha20poly1305_decrypt(decrypted, &decrypted_len,
+                                             NULL,
+                                             nonce_ciphertext + crypto_aead_chacha20poly1305_NPUBBYTES, 
+                                             ciphertext_len - crypto_aead_chacha20poly1305_NPUBBYTES,
+                                             NULL, 0,
+                                             nonce_ciphertext, key) != 0) {
+        /* message forged! */
+        return -1;
+    }
+    memcpy(buf, decrypted, len);
+    return decrypted_len;
 }
 
 void wioe_cancel_recieve(wioe* device) {

@@ -2,6 +2,7 @@
 #define WIOE_H_
 
 #include "ser.h"  // Include serial communication functions
+#include <sodium.h>
 
 // Forward declaration of wioe structure
 typedef struct wioe wioe;
@@ -62,6 +63,15 @@ int wioe_update(wioe* device, wioe_params* params);
 // @return 0 on success, or a non-zero value on error.
 int wioe_send(wioe* device, char* data, size_t len);
 
+// Sends encrypted ChaCha20 data through the Wio-E5 device
+//
+// @param device The initialized wioe device
+// @param data The data to be sent
+// @param len Len in bytes of the data to be sent
+// @param key The encryption key being used of len crypto_aead_chacha20poly1305_KEYBYTES
+// @return 0 on success, or a non-zero value on error.
+int wioe_send_encrypted(wioe* device, char* data, size_t len, const unsigned char *key);
+
 // Receives data from the Wio-E5 device
 //
 // @param device The initialized wioe device
@@ -69,6 +79,15 @@ int wioe_send(wioe* device, char* data, size_t len);
 // @param len The size of the buffer
 // @return 0 on success, or a non-zero value on error.
 int wioe_recieve(wioe* device, char* buf, size_t len);
+
+// Receives encrypted ChaCha20 data from the Wio-E5 device
+//
+// @param device The initialized wioe device
+// @param buf The buffer where the recieved data should be stored
+// @param len The size of the buffer
+// @param key The encryption key being used of len crypto_aead_chacha20poly1305_KEYBYTES
+// @return 0 on success, or a non-zero value on error.
+int wioe_recieve_encrypted(wioe* device, char* buf, size_t len, const unsigned char *key);
 
 // If the device is currently reading (in another thread), then this
 // function will cancel the blocking function

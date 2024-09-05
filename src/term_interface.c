@@ -2,7 +2,7 @@
 #include "wioe.h"
 
 typedef struct {
-    int (*callback)(int, char**, void*);
+    int (*callback)(char*, void*);
     void* callback_ptr;
     int cursor_position;
     char command_line[MAX_COMMAND_LENGTH];
@@ -45,9 +45,9 @@ void* backend_term(void* args) {
     int curr_history_index = 0;
     int current_index = 0;
     //int cursor_position = 0;
-    int ch;
     display_command_line(data->command_line, data->cursor_position);
-    while ((ch = getchar()) != 27) {
+    int ch;
+    while ((ch = getchar()) != '~') {
         pthread_mutex_lock(&data->lock);
         if (ch == '\033') { // Check for escape sequence (arrow keys)
             getchar();
@@ -94,25 +94,8 @@ void* backend_term(void* args) {
             data->cursor_position = 0;
             current_index = 0;
             curr_history_index = history_index;
-            // Call callback by first tokenizing
-            int argc = 0;
-            char* tok = strtok(out, " ");
-            while (tok != NULL) {
-                argc++;
-                tok = strtok(NULL, " ");
-            }
-            char* argv[argc];
-            char* curr = out;
-            int idx = 0;
-            int j = 0;
-            while (idx < argc) {
-                if (out[j] == '\0') {
-                    argv[idx++] = curr;
-                    curr = out + j + 1;
-                }
-                j++; 
-            }
-            if (data->callback(argc, argv, data->callback_ptr) < 0) { return (void*) -1; }
+            // Call callback
+            if (data->callback(out, data->callback_ptr) < 0) { return (void*) -1; }
             // Reset terminal
             display_command_line(data->command_line, data->cursor_position);
         } else if (ch == 127) { // Backspace key
@@ -147,7 +130,7 @@ void* backend_term(void* args) {
 }
 
 // Function used to display terminal UI for user
-int term_interface(int (*callback)(int, char**, void*), void* ptr) {
+int term_interface(int (*callback)(char*, void*), void* ptr) {
     // Initilize args and shared command_line
     term_args* data = malloc(sizeof(term_args));
     data->callback = callback;
@@ -161,7 +144,7 @@ int term_interface(int (*callback)(int, char**, void*), void* ptr) {
 }
 
 // Function used to display terminal UI for user but async
-term* term_interface_async(int (*callback)(int, char**, void*), void* ptr) {
+term* term_interface_async(int (*callback)(char*, void*), void* ptr) {
     // Initilize args and shared command_line
     term_args* data = malloc(sizeof(term_args));
     data->callback = callback;

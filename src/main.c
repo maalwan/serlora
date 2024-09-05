@@ -6,13 +6,13 @@
 #include "wioe.h"
 
 // Callback for P2P using wioe.h
-int p2p_callback(int argc, char** argv, void* device_ptr) {
+int p2p_callback(char* arg, void* device_ptr) {
     // Recover device
     wioe* device = (wioe*) device_ptr;
     // Stop the reading in the other thread
     wioe_cancel_recieve(device);
     // Send the message
-    wioe_send(device, argv[0], strlen(argv[0]) + 1);
+    wioe_send(device, arg, strlen(arg) + 1);
     return 0;
 }
 
@@ -51,10 +51,16 @@ int main(int argc, char** argv) {
     // Basic communication protocol
     while (!term_is_complete(info)) {
         char buf[256];
-        if (wioe_recieve(dev, buf, 256)) {
-            term_print(info, buf);
+        int bytes = wioe_recieve(dev, buf, sizeof(buf));
+        if (bytes >= 0) {
+            // Null terminate buf
+            buf[bytes] = '\0';
+            // Output
+            char out[512];
+            snprintf(out, sizeof(out), "\033[1;31mRecieved:\033[0m %s", buf);
+            term_print(info, out);
         }
-        usleep(2000);
+        usleep(50000);
     }
 
     // Cleanup
