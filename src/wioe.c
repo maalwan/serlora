@@ -1,9 +1,12 @@
 #include "wioe.h"
 #include <stdint.h>
+#include <string.h>
 
 #define BUFLEN 528
 #define ISON(x) (x ? "ON" : "OFF")
 #define init_t &()
+
+// Structs and helper methods
 
 struct wioe {
     wioe_params* actual_params;
@@ -14,6 +17,7 @@ struct wioe {
 };
 
 int wioe_handle_packet(char* buf, size_t len) {
+    printf("\n%s\n", buf);
     // Check for error
     if (strstr(buf, "ERROR") != NULL) { return 0; }
     // Get the pkt in hexadecimal
@@ -26,13 +30,15 @@ int wioe_handle_packet(char* buf, size_t len) {
         sscanf(pos, "%2hhx", &pkt[count]);
         pos += 2;
     }
-    //*(pkt + count) = '\0';
-    len = count >= len ? count : len;
+    len = count <= len ? count : len;
     strncpy(buf, pkt, len);
     return len;
 }
 
+// Main methods
+
 wioe* wioe_init(wioe_params* params, char* serial_port) {
+    if (sodium_init() < 0) { return NULL; }
     int pipe_fd[2];
     if (pipe(pipe_fd) == -1) { return NULL; }
     int serial_fd = open_serial(serial_port);
@@ -43,7 +49,7 @@ wioe* wioe_init(wioe_params* params, char* serial_port) {
         device->serial_fd = serial_fd;
         device->pipe_fd[0] = pipe_fd[0];
         device->pipe_fd[1] = pipe_fd[1];
-        char buf[BUFLEN];
+        unsigned char buf[BUFLEN];
         int r = write(serial_fd, "AT+MODE=TEST\n", 14);
         r = read_serial(serial_fd, 1000, buf, sizeof(buf));
         if (r > 0) {
@@ -70,8 +76,8 @@ int wioe_update(wioe* device, wioe_params* params) {
         return -1;
     }
     // Write command to update configuration
-    char buf[BUFLEN];
-    snprintf(buf, BUFLEN - 1, "AT+TEST=RFCFG,F:%.6f,SF%i,%i,%i,%i,%i,%s,%s,%s\n",
+    unsigned char buf[BUFLEN];
+    snprintf((char*) buf, BUFLEN - 1, "AT+TEST=RFCFG,F:%.6f,SF%i,%i,%i,%i,%i,%s,%s,%s\n",
         params->frequency,
         params->spreading_factor,
         params->bandwidth,
@@ -82,7 +88,7 @@ int wioe_update(wioe* device, wioe_params* params) {
         ISON(params->inverted_iq),
         ISON(params->public_lorawan));
     pthread_mutex_lock(&device->lock);
-    r = write(device->serial_fd, buf, strlen(buf) + 1);
+    r = write(device->serial_fd, (char*) buf, strlen((char*) buf) + 1);
     pthread_mutex_unlock(&device->lock);
     if (r < 0) { return r; }
     // Read to make sure there is no error
@@ -90,18 +96,24 @@ int wioe_update(wioe* device, wioe_params* params) {
     r = read_serial(device->serial_fd, 1000, buf, BUFLEN);
     pthread_mutex_unlock(&device->lock);
     if (r < 0) { return r; }
-    if (strstr(buf, "ERROR") != NULL) { return -1; }
+    if (strstr((char*) buf, "ERROR") != NULL) { return -1; }
     // Copy new parameters
     memcpy(&device->actual_params, params, sizeof(wioe_params));
     return 0;
 }
 
-int wioe_send(wioe* device, char* data, size_t len) {
+int wioe_send_bytes(wioe* device, unsigned char* data, size_t len) {
+    // Convert to a character representation of hex for wio-e5 device
+    unsigned char hex_data[len*2+1];
+    for (size_t i = 0; i < len; ++i)
+        sprintf((char*) &hex_data[2*i], "%02hhX", data[i]);
+    hex_data[len*2+1] = '\0';
+    // Try sending to device
     if (!wioe_is_valid(device)) { return -1; }
-    char buf[BUFLEN];
-    snprintf(buf, BUFLEN - 1, "AT+TEST=TXLRSTR,\"%s\"\n", data);
+    unsigned char buf[BUFLEN];
+    snprintf((char*) buf, BUFLEN - 1, "AT+TEST=TXLRPKT,\"%s\"\n", hex_data);
     pthread_mutex_lock(&device->lock);
-    ssize_t r = write(device->serial_fd, buf, strlen(buf) + 1);
+    ssize_t r = write(device->serial_fd, (char*) buf, strlen((char*) buf) + 1);
     pthread_mutex_unlock(&device->lock);
     if (r < 0) { return r; }
     // Read to make sure there is no error
@@ -109,14 +121,14 @@ int wioe_send(wioe* device, char* data, size_t len) {
     r = read_serial(device->serial_fd, 1000, buf, BUFLEN);
     pthread_mutex_unlock(&device->lock);
     if (r < 0) { return r; }
-    if (strstr(buf, "ERROR") != NULL) { return -1; }
+    if (strstr((char*) buf, "ERROR") != NULL) { return -1; }
     // Read again if necessary to get +TEST: TX DONE
-    if (strstr(buf, "\n\n") == NULL) {
+    if (strstr((char*) buf, "\n\n") == NULL) {
         pthread_mutex_lock(&device->lock);
         r = read_serial(device->serial_fd, 1000, buf, BUFLEN);
         pthread_mutex_unlock(&device->lock);
         if (r < 0) { return r; }
-        if (strstr(buf, "ERROR") != NULL) { return -1; }
+        if (strstr((char*) buf, "ERROR") != NULL) { return -1; }
     }
     return 0;
 }
@@ -137,12 +149,12 @@ int wioe_send_encrypted(wioe* device, char* data, size_t len, const unsigned cha
                                          (unsigned char*) data, len,
                                          NULL, 0,
                                          NULL, nonce, key);
-    return wioe_send(device, nonce_ciphertext, ciphertext_len);
+    return wioe_send_bytes(device, nonce_ciphertext, sizeof nonce_ciphertext);
 }
 
-int wioe_recieve(wioe* device, char* buf, size_t len) {
+int wioe_recieve_bytes(wioe* device, unsigned char* buf, size_t len) {
     if (!wioe_is_valid(device)) { return -1; }
-    char cmd[BUFLEN];
+    unsigned char cmd[BUFLEN];
     pthread_mutex_lock(&device->lock);
     ssize_t r = write(device->serial_fd, "AT+TEST=RXLRPKT\n", 17);
     pthread_mutex_unlock(&device->lock);
@@ -152,18 +164,18 @@ int wioe_recieve(wioe* device, char* buf, size_t len) {
     r = read_serial(device->serial_fd, 1000, cmd, BUFLEN);
     pthread_mutex_unlock(&device->lock);
     if (r < 0) { return r; }
-    if (strstr(buf, "ERROR") != NULL) { return -1; }
+    if (strstr((char*) buf, "ERROR") != NULL) { return -1; }
     // Start reading message while blocking
     pthread_mutex_lock(&device->lock);
     r = read_serial_trigger(device->serial_fd, 0, buf, len, device->pipe_fd[0]);
     pthread_mutex_unlock(&device->lock);
     if (r <= 0) { return r; }
-    return wioe_handle_packet(buf, len);
+    return wioe_handle_packet((char*) buf, len);
 }
 
-int wioe_recieve_encrypted(wioe* device, char* buf, size_t len, const unsigned char *key) {
+int wioe_recieve_encrypted(wioe* device, unsigned char* buf, size_t len, const unsigned char *key) {
     unsigned char nonce_ciphertext[BUFLEN];
-    int ciphertext_len = wioe_recieve(device, nonce_ciphertext, len);
+    int ciphertext_len = wioe_recieve_bytes(device, nonce_ciphertext, sizeof nonce_ciphertext);
     if (ciphertext_len <= 0) { return ciphertext_len; }
     unsigned char decrypted[BUFLEN];
     unsigned long long decrypted_len;
@@ -176,6 +188,7 @@ int wioe_recieve_encrypted(wioe* device, char* buf, size_t len, const unsigned c
         /* message forged! */
         return -1;
     }
+    len = decrypted_len > len ? len : decrypted_len;
     memcpy(buf, decrypted, len);
     return decrypted_len;
 }

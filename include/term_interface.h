@@ -23,7 +23,9 @@ typedef struct term term;
 //                 with a null terminated string.
 // @param ptr Additional parameter passed to the callback function.
 // @return 0 on success, or a non-zero value on error.
-int term_interface(int (*callback)(char*, void*), void* ptr);
+int term_interface(int (*callback)(char*, void*),
+                   int (*cleanup)(void*),
+                   void* ptr);
 
 // Initializes the terminal interface and starts handling input asynchronously.
 //
@@ -32,7 +34,9 @@ int term_interface(int (*callback)(char*, void*), void* ptr);
 // @param ptr Additional parameter passed to the callback function.
 // @return Pointer to a `term` structure representing the terminal interface,
 //         or NULL on error.
-term* term_interface_async(int (*callback)(char*, void*), void* ptr);
+term* term_interface_async(int (*callback)(char*, void*),
+                           int (*cleanup)(void*),
+                           void* ptr);
 
 // Prints a string to the terminal interface.
 //

@@ -3,6 +3,7 @@
 
 typedef struct {
     int (*callback)(char*, void*);
+    int (*cleanup)(void*);
     void* callback_ptr;
     int cursor_position;
     char command_line[MAX_COMMAND_LENGTH];
@@ -125,15 +126,19 @@ void* backend_term(void* args) {
     tcsetattr(STDIN_FILENO, TCSANOW, &old);
     putc('\n', stdout);
     data->complete = 1;
-    wioe_cancel_recieve((wioe*) data->callback_ptr);
+    if (data->cleanup(data->callback_ptr) < 0) { return (void*) -1; }
+    // wioe_cancel_recieve((wioe*) data->callback_ptr);
     return (void*) 0;
 }
 
 // Function used to display terminal UI for user
-int term_interface(int (*callback)(char*, void*), void* ptr) {
+int term_interface(int (*callback)(char*, void*),
+                   int (*cleanup)(void*),
+                   void* ptr) {
     // Initilize args and shared command_line
     term_args* data = malloc(sizeof(term_args));
     data->callback = callback;
+    data->cleanup = cleanup;
     data->callback_ptr = ptr;
     data->complete = 0;
     memset(data->command_line, 0, sizeof(data->command_line));
@@ -144,10 +149,13 @@ int term_interface(int (*callback)(char*, void*), void* ptr) {
 }
 
 // Function used to display terminal UI for user but async
-term* term_interface_async(int (*callback)(char*, void*), void* ptr) {
+term* term_interface_async(int (*callback)(char*, void*),
+                           int (*cleanup)(void*),
+                           void* ptr) {
     // Initilize args and shared command_line
     term_args* data = malloc(sizeof(term_args));
     data->callback = callback;
+    data->cleanup = cleanup;
     data->callback_ptr = ptr;
     memset(data->command_line, 0, sizeof(data->command_line));
     pthread_mutex_init(&data->lock, NULL);

@@ -36,7 +36,7 @@ int open_serial(char* serial_port) {
     return serial_fd;
 }
 
-ssize_t read_serial(int serial_fd, size_t ms, char* buf, size_t len) {
+ssize_t read_serial(int serial_fd, size_t ms, unsigned char* buf, size_t len) {
     // Read with timeout
     fd_set read_fds;
     FD_ZERO(&read_fds);
@@ -72,7 +72,7 @@ ssize_t read_serial(int serial_fd, size_t ms, char* buf, size_t len) {
     return bytes_read - 2;
 }
 
-ssize_t read_serial_trigger(int serial_fd, size_t ms, char* buf, size_t len, int trigger_fd) {
+ssize_t read_serial_trigger(int serial_fd, size_t ms, unsigned char* buf, size_t len, int trigger_fd) {
     // Read with timeout
     fd_set read_fds;
     FD_ZERO(&read_fds);
