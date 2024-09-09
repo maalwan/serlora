@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project leverages STM32 Cortex-M4 boards with integrated LoRa (SX126X) to enable wireless messaging between two client computers. The implementation is written in multi-threaded C and utilizes a custom peer-to-peer (P2P) messaging protocol. The Wio-E5 mini development board is used for this project.
+This project leverages STM32 Cortex-M4 boards with integrated LoRa (SX126X) to enable wireless messaging between two client computers. The implementation is written in multi-threaded C and utilizes a custom peer-to-peer (P2P) messaging protocol. The Wio-E5 mini development board is used for this project. This project has only been tested on macos.
 
 ## Features
 
