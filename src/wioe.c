@@ -17,21 +17,25 @@ struct wioe {
 };
 
 int wioe_handle_packet(char* buf, size_t len) {
-    printf("\n%s\n", buf);
     // Check for error
-    if (strstr(buf, "ERROR") != NULL) { return 0; }
-    // Get the pkt in hexadecimal
+    if (strstr(buf, "ERROR") != NULL)
+        return 0;
+    // Get the packet in hexadecimal format
     char pkt[BUFLEN];
-    sscanf(buf, "+TEST: LEN:%*d, RSSI:%*d, SNR:%*d\n\n+TEST: RX \"%[^\"]\"", pkt);  
-    // Convert to char
+    if (sscanf(buf, "+TEST: LEN:%*d, RSSI:%*d, SNR:%*d\n\n+TEST: RX \"%[^\"]\"", pkt) != 1)
+        return 0; // Handle parsing error
+    // Buffer to hold the converted bytes
+    char temp_buf[BUFLEN];
     char* pos = pkt;
     size_t count = 0;
-    for (; count < (strlen(pkt) / 2); count++) {
-        sscanf(pos, "%2hhx", &pkt[count]);
+    // Convert hex string to bytes
+    while (count < len && sscanf(pos, "%2hhx", (unsigned char*)&temp_buf[count]) == 1) {
         pos += 2;
+        count++;
     }
+    // Copy the binary data to the original buffer
     len = count <= len ? count : len;
-    strncpy(buf, pkt, len);
+    memcpy(buf, temp_buf, len);
     return len;
 }
 
@@ -185,7 +189,7 @@ int wioe_recieve_encrypted(wioe* device, unsigned char* buf, size_t len, const u
                                              ciphertext_len - crypto_aead_chacha20poly1305_NPUBBYTES,
                                              NULL, 0,
                                              nonce_ciphertext, key) != 0) {
-        /* message forged! */
+        /* message forged! ... or not intended for us */
         return -1;
     }
     len = decrypted_len > len ? len : decrypted_len;

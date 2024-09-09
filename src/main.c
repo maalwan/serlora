@@ -5,44 +5,28 @@
 #include "ser.h"
 #include "wioe.h"
 
+// Callback for P2P using wioe.h
 struct callback_args {
     wioe* device;
     unsigned char key[crypto_aead_chacha20poly1305_KEYBYTES];
 };
+int p2p_callback(char* arg, void* info_args);
 
 // Callback for P2P using wioe.h
-int p2p_callback(char* arg, void* info_args) {
-    // Recover args
-    struct callback_args* info = (struct callback_args*) info_args;
-    wioe* device = info->device;
-    unsigned char key[crypto_aead_chacha20poly1305_KEYBYTES];
-    memcpy(key, &info->key, crypto_aead_chacha20poly1305_KEYBYTES);
-    // Stop the reading in the other thread
-    wioe_cancel_recieve(device);
-    // Send the message
-    wioe_send_encrypted(device, arg, strlen(arg) + 1, key);
-    return 0;
-}
+int p2p_cleanup(void* info_args);
 
-// Callback for P2P using wioe.h
-int p2p_cleanup(void* info_args) {
-    // Recover args
-    struct callback_args* info = (struct callback_args*) info_args;
-    wioe* device = info->device;
-    wioe_cancel_recieve(device);
-    return 0;
-}
-
+// Main loop, first we get the passkey from the user, setup the device and use
+// a basic listening/send protocol to allow users to message each other if
+// they are using the same wioe_params and encryption passkey
 int main(int argc, char** argv) {
     // Args
     if (argc != 3){
-        puts("usage: wio device_path password");
+        puts("usage: ./wio device_path password");
         return EXIT_FAILURE;
     }
     // Get path
-    int r;
     char path[32];
-    r = snprintf(path, sizeof(path), "/dev/cu.%s", argv[1]);
+    int r = snprintf(path, sizeof(path), "/dev/cu.%s", argv[1]);  // For macos
     if (r < 0) { return 1; }
     // Get key from password
     unsigned char salt[crypto_pwhash_SALTBYTES];
@@ -55,20 +39,15 @@ int main(int argc, char** argv) {
         // out of memory
         return EXIT_FAILURE;
     }
-    printf("Key: ");
-    for (int i = 0; i < crypto_aead_chacha20poly1305_KEYBYTES; i++) {
-        printf("%02hhx ", key[i]);
-    }
-    printf("\n");
 
     // Setup device
     wioe_params params = {
         .frequency = 915,
         .spreading_factor = 7,
         .bandwidth = 500,
-        .tx_preamble = 6,
-        .rx_preamble = 6,
-        .power = 0,
+        .tx_preamble = 12,
+        .rx_preamble = 15,
+        .power = -10,
         .crc = 1,
         .inverted_iq = 0,
         .public_lorawan = 0,
@@ -97,7 +76,8 @@ int main(int argc, char** argv) {
             snprintf(out, sizeof(out), "\033[1;31mRecieved:\033[0m %s", buf);
             term_print(info, out);
         } else if (bytes < 0) {
-            printf("error");
+            perror("Error recieving message");
+            return EXIT_FAILURE;
         }
         usleep(20000);  // 20 ms
     }
@@ -106,4 +86,25 @@ int main(int argc, char** argv) {
     wioe_destroy(dev);
     if (r < 0 ) { return EXIT_FAILURE; }
     return EXIT_SUCCESS;
+}
+
+int p2p_callback(char* arg, void* info_args) {
+    // Recover args
+    struct callback_args* info = (struct callback_args*) info_args;
+    wioe* device = info->device;
+    unsigned char key[crypto_aead_chacha20poly1305_KEYBYTES];
+    memcpy(key, &info->key, crypto_aead_chacha20poly1305_KEYBYTES);
+    // Stop the reading in the other thread
+    wioe_cancel_recieve(device);
+    // Send the message
+    wioe_send_encrypted(device, arg, strlen(arg) + 1, key);
+    return 0;
+}
+
+int p2p_cleanup(void* info_args) {
+    // Recover args
+    struct callback_args* info = (struct callback_args*) info_args;
+    wioe* device = info->device;
+    wioe_cancel_recieve(device);
+    return 0;
 }
