@@ -9,7 +9,7 @@ This project leverages STM32 Cortex-M4 boards with integrated LoRa (SX126X) to e
 - Wireless communication between client computers using LoRa technology
 - Multi-threaded C implementation
 - Custom P2P messaging protocol
-- No external libraries required
+- Only requires one external library (libsodium)
 
 ## Hardware
 
@@ -40,17 +40,29 @@ Use the included `Makefile` to build the project:
 
 This will compile the source code and generate the necessary binaries.
 
-## Flashing the Firmware
-Refer to the documentation of your STM32 toolchain for instructions on how to flash the firmware onto the Wio-E5 mini development board.
-
-## Usage
+## Usage (for macos)
 
 ### Set Up the Hardware
 Connect two Wio-E5 mini boards and ensure they are powered and within range of each other.
 
-### Run the Application
-After flashing the firmware, power on both boards. They will automatically begin the wireless messaging process using the custom P2P protocol.
+### Get Dev Path Info
+Run ```ls /dev/cu.*``` after plugging in the device to find the device paths. It should look something like ```/dev/cu.usbserial-12130```. You will use the part after the period (i.e. ```usbserial-12130```) as the "truncated_dev_path".
 
+### Run the Application
+After connecting the boards and locating their device paths, run
+   ```
+   ./wio truncated_dev_path passkey
+   ```
+to start the messaging client. Ensure the same passkey is used for both devices (otherwise, you won't be able to decrypt the recieved messages). Also ensure that your messages are not over ~200 characters in length (LoRa packets only support 255 byte packets maximum). Your client should look something like this (sample):
+   ```
+   $ ./wio truncated_dev_path passkey
+   ~$ hi
+   Recieved: hi, this is from the other dev board
+   ~$ this is from my dev board
+   Recieved: bye
+   ~$ bye
+   ```
+Press delete to exit. You can use arrows like in the terminal to recall previous messages.
 ## Directory Structure
 
 - `src/` - Contains source code
