@@ -38,7 +38,7 @@ Use the included `Makefile` to build the project:
    make
    ```
 
-This will compile the source code and generate the necessary binaries.
+This will compile the source code and generate the necessary binaries (ensure that you have correctly installed libsodium before).
 
 ## Usage (for macos)
 
